@@ -63,7 +63,7 @@ The pipeline simulates a two-target scene (one vibrating, one static) using phys
 <p align="center">
 <img width="2781" height="784" alt="vibration_spectrum" src="https://github.com/user-attachments/assets/2751832e-86a2-4552-98d5-dc4c03b046f2" />
 </p>
-<p align="center">FFT spectrum confirming the vibration frequency.</em></p>
+<p align="center"><em>FFT spectrum confirming the vibration frequency.</em></p>
 
 ---
 
