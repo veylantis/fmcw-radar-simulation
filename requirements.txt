@@ -1,0 +1,25 @@
+# FMCW Radar Studio — Python Dependencies
+# Requires Python 3.10–3.14 (RadarSimPy .pyd binaries, Windows x64 only)
+#
+# RadarSimPy is NOT pip-installable. It ships as pre-compiled .pyd files
+# and must be placed manually into envs/cpu/ and envs/gpu/ directories.
+# See: https://radarsimx.com
+
+# --- Core Scientific Stack ---
+numpy
+scipy
+h5py
+
+# --- Visualization ---
+matplotlib
+plotly
+
+# --- Web Dashboard ---
+fastapi
+uvicorn[standard]
+
+# --- Utilities ---
+tqdm
+
+# --- 3D Mesh (used by RadarSimPy mesh_kit at runtime) ---
+trimesh

@@ -1,0 +1,21 @@
+{
+    "scene": {
+        "vibrating_cross": {
+            "location": [2.5, -1.0, 0.0],
+            "rotation": [0.0, 0.0, 0.0],
+            "vibration_freq_hz": 5.0,
+            "vibration_amp_m": 0.002
+        },
+        "static_cross": {
+            "location": [2.5, 0.0, 0.0],
+            "rotation": [30.0, 45.0, 15.0]
+        }
+    },
+    "simulation": {
+        "cpu_density": 0.3,
+        "gpu_density": 0.1,
+        "gpu_pulses": 2500,
+        "env_path_cpu": "../../envs/cpu",
+        "env_path_gpu": "../../envs/gpu"
+    }
+}

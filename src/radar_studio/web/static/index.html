@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Radar Studio Web Explorer</title>
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <script type="importmap">
+        {
+          "imports": {
+            "three": "https://unpkg.com/three@0.150.1/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.150.1/examples/jsm/"
+          }
+        }
+    </script>
+    <style>
+        body, html { margin:0; padding:0; display:flex; height:100vh; overflow:hidden; font-family: Roboto, sans-serif; background: #0b0c10; color: white;}
+        #left-pane { width: 45vw; border-right: 2px solid #1f2833; display: flex; flex-direction:column; }
+        
+        .header-bar { background: #1f2833; border-bottom: 2px solid #45a29e; padding: 12px; color: #66fcf1; font-size: 14px; font-weight: bold; text-align: center; }
+        
+        #plotly-container { flex-grow: 1; position: relative; overflow-y: auto;}
+        
+        #right-pane { width: 55vw; position: relative; }
+        #three-canvas { width: 100%; height: 100%; }
+        .overlay-bar { position: absolute; z-index: 10; width: 100%; box-sizing: border-box; background: rgba(31, 40, 51, 0.8); padding: 10px; font-weight: bold;}
+    </style>
+</head>
+<body>
+    <div id="left-pane">
+        <div class="header-bar">Ground Truth Map</div>
+        <div id="plotly-container">
+            <div id="plot-map" style="width:100%; height:100%;"></div>
+        </div>
+    </div>
+    <div id="right-pane">
+        <div class="overlay-bar">
+            3D Scene & Ray Pathing (<span id="bounce-info">0 paths</span>)
+        </div>
+        <div id="three-canvas"></div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+
+        // ─── THREE.JS SETUP ──────────────────────────────────────
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0b0c10);
+        
+        const container = document.getElementById('three-canvas');
+        const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
+        camera.position.set(-1.0, 0.0, 1.5);
+        camera.up.set(0, 0, 1);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        container.appendChild(renderer.domElement);
+        
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(2.5, -0.5, 0.0);
+        controls.update();
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(0, -5, 10);
+        scene.add(dirLight);
+
+        const gridHelper = new THREE.GridHelper(10, 10, 0x444444, 0x222222);
+        gridHelper.rotation.x = Math.PI / 2;
+        gridHelper.position.set(2.5, 0, 0);
+        scene.add(gridHelper);
+
+        const originGeo = new THREE.SphereGeometry(0.08);
+        const originMat = new THREE.MeshBasicMaterial({color: 0xff0000});
+        scene.add(new THREE.Mesh(originGeo, originMat));
+
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        let lineGroup = new THREE.Group();
+        scene.add(lineGroup);
+
+        // Load 3D Scene
+        fetch('/api/scene').then(r => r.json()).then(data => {
+            if (!data.targets || !data.targets.length) return;
+            const loader = new STLLoader();
+            data.targets.forEach((tgt, i) => {
+                loader.load("/workspace/models/cross_scaled.stl", (geometry) => {
+                    geometry.computeVertexNormals();
+                    geometry.computeBoundingBox();
+                    const size = new THREE.Vector3();
+                    geometry.boundingBox.getSize(size);
+
+                    if (size.length() > 10) geometry.scale(0.001, 0.001, 0.001);
+                    if (!isFinite(size.length()) || size.length() === 0) return;
+
+                    const material = new THREE.MeshStandardMaterial({
+                        color: 0x45a29e, roughness: 0.5, metalness: 0.1, side: THREE.DoubleSide
+                    });
+                    const mesh = new THREE.Mesh(geometry, material);
+                    mesh.position.set(tgt.location[0], tgt.location[1], tgt.location[2]);
+                    // Orientation solver: scipy XYZ = Three.js ZYX, signs X=+1 Y=-1 Z=+1
+                    mesh.rotation.order = 'ZYX';
+                    mesh.rotation.set(
+                        tgt.rotation[2] * Math.PI/180,   // +Roll  → X
+                       -tgt.rotation[1] * Math.PI/180,   // -Pitch → Y
+                        tgt.rotation[0] * Math.PI/180    // +Yaw   → Z
+                    );
+                    scene.add(mesh);
+
+                    const wireMat = new THREE.LineBasicMaterial({color:0x66fcf1, transparent:true, opacity:0.3});
+                    mesh.add(new THREE.LineSegments(new THREE.WireframeGeometry(geometry), wireMat));
+                });
+            });
+        });
+
+        // ─── DRAW RAYS ───────────────────────────────────────
+        const segmentColors = [0xffff00, 0xff00ff, 0x00ffff, 0x00ff00, 0xff8800];
+        window.drawRays = function(az, r) {
+            fetch(`/api/rays?a=${az}&r=${r}`).then(res=>res.json()).then(data => {
+                lineGroup.clear();
+                let paths = data.paths;
+                document.getElementById('bounce-info').innerText = `${paths.length} ref rays`;
+                
+                paths.forEach((pts, idx) => {
+                    const opacity = (idx > 3) ? 0.25 : 0.9;
+                    for (let i = 0; i < pts.length - 1; i++) {
+                        const p1 = new THREE.Vector3(pts[i][0], pts[i][1], pts[i][2]);
+                        const p2 = new THREE.Vector3(pts[i+1][0], pts[i+1][1], pts[i+1][2]);
+                        const color = segmentColors[i % segmentColors.length];
+                        const material = new THREE.LineBasicMaterial({color: color, linewidth: 2, transparent: true, opacity: opacity});
+                        const geometry = new THREE.BufferGeometry().setFromPoints([p1, p2]);
+                        lineGroup.add(new THREE.Line(geometry, material));
+                    }
+                });
+            });
+        }
+
+        // ─── DATA STATE ────────────────────────────────────
+        let globalMaps = null;
+
+        // Custom colorscale matching visualizer.py RadarPlot: Black→DarkBlue→Cyan→Yellow→Red
+        const radarPlotColorscale = [
+            [0.00, 'rgb(0, 0, 0)'],
+            [0.25, 'rgb(0, 0, 128)'],
+            [0.50, 'rgb(0, 255, 255)'],
+            [0.75, 'rgb(255, 255, 0)'],
+            [1.00, 'rgb(255, 0, 0)']
+        ];
+
+        function renderMap() {
+            if (!globalMaps || !globalMaps.gt) return;
+            const data_matrix = globalMaps.gt;
+
+            // Per-row max/min to avoid stack overflow on 425K-element spread
+            const zMax = Math.max(...data_matrix.map(r => Math.max(...r)));
+            const zMin = Math.min(...data_matrix.map(r => Math.min(...r)));
+
+            const traces = [{
+                z: data_matrix[0].map((_, colIndex) => data_matrix.map(row => row[colIndex])),
+                x: globalMaps.az,
+                y: globalMaps.r,
+                type: 'heatmap',
+                colorscale: radarPlotColorscale,
+                zmin: zMin,
+                zmax: zMax,
+                colorbar: {
+                    title: { text: 'Hit Value', side: 'right' },
+                    tickfont: { color: '#ffffff' },
+                    titlefont: { color: '#ffffff' }
+                }
+            }];
+
+            const layout = {
+                margin: {t:30, l:50, r:20, b:40},
+                paper_bgcolor: '#0b0c10',
+                plot_bgcolor: '#0b0c10',
+                font: { color: '#ffffff' },
+                xaxis: { title: 'Azimuth (deg) [Reversed]', autorange: 'reversed' },
+                yaxis: { title: 'Range (m)' },
+                hovermode: 'closest'
+            };
+
+            Plotly.react('plot-map', traces, layout).then(() => {
+                const plotlyEl = document.getElementById('plot-map');
+                if(!plotlyEl._hoverBound) {
+                    let hoverTimeout = null;
+                    plotlyEl.on('plotly_hover', function(eventData) {
+                        if (hoverTimeout) clearTimeout(hoverTimeout);
+                        hoverTimeout = setTimeout(() => {
+                            const pt = eventData.points[0];
+                            if (pt.curveNumber !== 0) return;
+                            const ptIndex = pt.pointIndex;
+                            if (ptIndex && ptIndex.length === 2) {
+                                window.drawRays(ptIndex[1], ptIndex[0]); // az, r
+                            }
+                        }, 40);
+                    });
+                    plotlyEl._hoverBound = true;
+                }
+            });
+        }
+
+        // INITIAL LOAD
+        fetch('/api/maps').then(r=>r.json()).then(data => {
+            globalMaps = data;
+            renderMap();
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            Plotly.Plots.resize(document.getElementById('plot-map'));
+        });
+    </script>
+</body>
+</html>

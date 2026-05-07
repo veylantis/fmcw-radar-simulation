@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+title: "FMCW Radar Studio"
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - alias: veylantis
+url: "https://github.com/veylantis/fmcw-radar-simulation"
+repository-code: "https://github.com/veylantis/fmcw-radar-simulation"
+license: MIT
+date-released: "2026-05-07"
+keywords:
+  - fmcw
+  - radar
+  - ray-tracing
+  - vibration-detection
+  - beamforming
+  - radarsimpy
+  - dsp
