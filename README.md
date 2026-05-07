@@ -57,11 +57,11 @@ The pipeline simulates a two-target scene (one vibrating, one static) using phys
 
 <!-- ⬇️ PLACEHOLDER: Upload vibration_analysis.png here -->
 <p align="center">
-  <img width="2780" height="1577" alt="vibration_recovered" src="https://github.com/user-attachments/assets/caee7770-a043-48e8-b523-cef87bdb5fef" />
+<img width="2780" height="828" alt="vibration_recovered" src="https://github.com/user-attachments/assets/df116017-9813-4d4a-9684-b54b374a07c9" />
 </p>
 <p align="center"><em>Target displacement recovery (5 Hz)</em></p>
 <p align="center">
-  <img width="2781" height="1577" alt="vibration_spectrum" src="https://github.com/user-attachments/assets/1f8efc66-3a73-4941-ac5d-929ad15723d3" />
+<img width="2781" height="784" alt="vibration_spectrum" src="https://github.com/user-attachments/assets/2751832e-86a2-4552-98d5-dc4c03b046f2" />
 </p>
 <p align="center">FFT spectrum confirming the vibration frequency.</em></p>
 
